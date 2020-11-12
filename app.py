@@ -23,9 +23,9 @@ def welcome():
     return (f"Available Routes:<br/>"
             f"/api/v1.0/precipitation<br/>"
             f"/api/v1.0/stations<br/>"
-            f"/api.v1.0/temperature<br/>"
+            f"/api.v1.0/tobs<br/>"
             f"/api/v1.0/<start><br/>"
-            f"/api/v1.0/<start><end><br/>"
+            f"/api/v1.0/<start>/<end><br/>"
             )
     
 @app.route("/api/v1.0/precipitation")
@@ -52,25 +52,69 @@ def stations():
     
     return jsonify(stations)
 
-@app.route("/api/v1.0/temperature")
+@app.route("/api/v1.0/tobs")
 def tobs():
     session = Session(engine)
 
-    results = session.query(Measurements.date, Measurements.tobs).filter((Measurements.station) == "USC00519281").all()
+    last_date = session.query(Measurements.date).order_by(Measurements.date.desc()).first()
+    
+    last_year = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+
+    temp = session.query(Measurements.date, Measurements.tobs).filter(Measurements.date > last_year).order_by(Measurements.date).all()
 
     session.close()
 
-    tobs = list(np.ravel(results))
+    temp_totals = []
+    for result in temp:
+        row = {}
+        row["date"] = temp[0]
+        row["tobs"] = temp[1]
+        temp_totals.append(row)
 
-    return jsonify(tobs)
+
+    return jsonify(temp_totals)
 
 @app.route("/api/v1.0/<start>")
-def start():
-    return 
+def trip(date):
+    session = Session(engine)
 
-@app.route("/api/v1.0/<start><end>")
-def start_end():
-    return 
+    start_date = dt.datetime.strptime(start, "%Y-%m-%d")
+
+    last_year = dt.timedelta(days=365)
+
+    start = start_date - last_year
+
+    end = dt.date(2017, 8, 23)
+
+    result = session.query(func.min(Measurements.tobs), func.avg(Measurements.tobs), func.max(Measurements.tobs)).filter(Measurements.date >= start).filter(Measurements.date <= end).all()
+
+    session.close()
+
+    weather = list(np.ravel(result))
+    
+    return jsonify(weather)
+
+@app.route("/api/v1.0/<start>/<end>")
+def trip2(start, end):
+    session = Session(engine)
+
+    start_date = dt.datetime.strptime(start, "%Y-%m-%d")
+
+    end_date = dt.datetime.strptime(end, "%Y-%m-%d")
+
+    last_year = dt.timedelta(days=365)
+
+    start = start_date - last_year
+
+    end = end_date - last_year
+
+    result = session.query(func.min(Measurements.tobs), func.avg(Measurements.tobs), func.max(Measurements.tobs)).filter(Measurements.date >= start).filter(Measurements.date <= end).all()
+
+    session.close()
+
+    weather = list(np.ravel(result))
+    
+    return jsonify(weather)
 
 if __name__ == "__main__":
     app.run(debug=True)
